@@ -10,7 +10,9 @@
     "module": "CommonJS",
     "target": "es2022",
     "types": [],
-    "esModuleInterop": true,
+    "esModuleInterop": true,     /* lets you safely import default from CommonJS modules */
+    
+    "verbatimModuleSyntax": false, /* This drops the restriction causing the error */
     // For nodejs:
     // "lib": ["esnext"],
     // "types": ["node"],
@@ -36,7 +38,6 @@
     // Recommended Options
     "strict": true,
     // "jsx": "react-jsx",
-    "verbatimModuleSyntax": true,
     "isolatedModules": true,
     "noUncheckedSideEffectImports": true,
     "moduleDetection": "force",

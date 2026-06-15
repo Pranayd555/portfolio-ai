@@ -1,3 +1,6 @@
-const name: string = "Portfolio AI"
+import app from './app';
+import { env } from './config/env';
 
-console.log(`Hello, ${name}! Welcome to ${name}.`);
+app.listen(env.port, ()=> {
+    console.log(`server is running on port ${env.port}`)
+})
