@@ -1,10 +1,10 @@
 import { Request, Response } from  'express';
-import { askAI } from '../services/gemini.service';
+import { runPortfolioAgent } from '../services/gemini.service';
 
 export async function sendMessage(req: Request, res: Response) {
     try{
         const { message } = req.body;
-        const ans = await askAI(message);
+        const ans = await runPortfolioAgent(message);
 
         res.json({
             success: true,
