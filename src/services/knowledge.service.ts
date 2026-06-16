@@ -27,7 +27,7 @@ export class KnowledgeService {
     if (this.cache.has(source)) {
       return this.cache.get(source)!;
     }
-console.log('source', source)
+    console.log('source', source)
     const filePath = path.join(
       process.cwd(),
       'src',
