@@ -1,0 +1,34 @@
+# Dependency directories (Docker should install fresh via npm ci)
+node_modules/
+npm-debug.log
+yarn-debug.log
+yarn-error.log
+
+# Local build distributions (prevents overwriting the container's compilation output)
+dist/
+out-tsc/
+build/
+
+# Debug and configuration files
+.env
+.env.local
+.env.development
+.env.production
+.git
+.gitignore
+.project
+.vscode/
+.idea/
+.codex/
+.cursor/
+.gemini/
+.zed/
+
+# Operating System metadata files
+.DS_Store
+Thumbs.db
+
+# 💎 CRITICAL EXCEPTION FOR YOUR KNOWLEDGE BASE
+# If you have general rules ignoring markdown documents, we explicitly whitelist your files here:
+!knowledge/
+!src/knowledge/

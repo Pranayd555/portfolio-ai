@@ -28,10 +28,13 @@ export class KnowledgeService {
       return this.cache.get(source)!;
     }
     console.log('source', source)
+    // DYNAMIC PATH RESOLUTION
     const filePath = path.join(
-      process.cwd(),
-      'src',
-      'knowledge',
+      __dirname,
+      '..',
+      '..',
+      'src',          // Steps out of 'services' up to your compiled root ('/app/dist')
+      'knowledge',    // Drops directly into the 'knowledge' directory copied by your Dockerfile
       this.fileMap[source]
     );
 
