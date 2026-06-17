@@ -5,7 +5,20 @@ import { randomUUID } from 'crypto';
 import { runPortfolioAgent } from '../services/gemini.service';
 
 // Initialize a decoupled WebSocket Server (no port or server assigned yet)
-const chatWss = new WebSocketServer({ noServer: true });
+const chatWss = new WebSocketServer({ 
+  noServer: true,
+  verifyClient: (info, cb) => {
+    const origin = info.origin || info.req.headers.origin || '';
+    const allowed = ['http://localhost:4200', 'http://localhost:3000'];
+
+    if (allowed.includes(origin)) {
+      cb(true);
+    } else {
+      cb(false, 403, 'Forbidden');
+    }
+  }
+});
+
 const liveSessions = new Map<string, any>();
 
 chatWss.on('connection', async (ws: WebSocket, request: IncomingMessage) => {

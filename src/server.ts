@@ -3,26 +3,33 @@ import app from './app';
 import { env } from './config/env';
 import { chatWss } from './controllers/chat.controller';
 
+const ALLOWED_ORIGINS = [
+  'http://localhost:4200',
+  'http://localhost:3000',
+  // add your production domain here
+];
+
+
 // 1. Create an HTTP server using the Express app
 const server = createServer(app);
 
 // Intercept the HTTP Upgrade request before it hits Express routing
 server.on('upgrade', (request, socket, head) => {
   const { pathname } = new URL(request.url || '', `http://${request.headers.host}`);
+   const origin = request.headers.origin || '';
 
-  // 1. Check if the path matches our intended WebSocket route
+   if (!ALLOWED_ORIGINS.includes(origin)) {
+    console.warn(`WS upgrade rejected for origin: ${origin}`);
+    socket.write('HTTP/1.1 403 Forbidden\r\n\r\n');
+    socket.destroy();
+    return;
+  }
+
   if (pathname === '/api/chat') {
-    
-    // 2. Adapt the Node IncomingMessage into an Express Request for the middleware
-    const req = request as IncomingMessage;
-    // 3. If middleware passes, hand off the socket connection to our chat WS server
     chatWss.handleUpgrade(request, socket, head, (ws) => {
-    // Pass the request along (with req.user attached) to the connection event
-    chatWss.emit('connection', ws, req);
+      chatWss.emit('connection', ws, request);
     });
-    
   } else {
-    // If the path doesn't match any WebSocket endpoints, destroy the socket connection
     socket.destroy();
   }
 });
