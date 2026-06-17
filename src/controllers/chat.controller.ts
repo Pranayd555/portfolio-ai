@@ -26,7 +26,17 @@ chatWss.on('connection', async (ws: WebSocket, request: IncomingMessage) => {
   console.log('New client connected', connectionId);
 
   ws.send(JSON.stringify({ type: 'SYSTEM', message: 'Welcome to the chat, anonymous!' }));
-  ws.send(JSON.stringify({ type: 'WELCOME', message: 'Connected to WebSocket server!', connectionId }));
+  ws.send(JSON.stringify({ type: 'WELCOME', 
+    message: 
+`Neural link established.
+
+You've connected to Eva.
+
+Think of me as a digital assistant trained on Pranay's experience, projects, technical decisions, and engineering journey.
+
+Whether you're a recruiter, client, founder, or fellow developer, I can help you navigate his professional universe.
+
+What would you like to know?`, connectionId }));
 
   try {
     const geminiSession = await runPortfolioAgent(
