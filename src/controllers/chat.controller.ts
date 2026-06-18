@@ -3,13 +3,14 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { IncomingMessage } from 'http';
 import { randomUUID } from 'crypto';
 import { runPortfolioAgent } from '../services/gemini.service';
+import { env } from '../config/env';
 
 // Initialize a decoupled WebSocket Server (no port or server assigned yet)
 const chatWss = new WebSocketServer({ 
   noServer: true,
   verifyClient: (info, cb) => {
     const origin = info.origin || info.req.headers.origin || '';
-    const allowed = ['http://localhost:4200', 'http://localhost:3000'];
+    const allowed = env.allowedOrigins;
 
     if (allowed.includes(origin)) {
       cb(true);
