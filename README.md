@@ -1,16 +1,15 @@
 # Portfolio AI Backend
 
-An AI-powered backend service for my personal portfolio website. This project provides an intelligent chat assistant that can answer questions about my professional experience, skills, projects, resume, and technical expertise.
+An AI-powered backend service for my personal portfolio website. This project provides a reactive Gemini Live chat assistant that answers questions about Pranay Das' professional experience, skills, projects, resume, and technical expertise.
 
 ## Features
 
-* AI-powered chat assistant
-* REST API built with Express.js and TypeScript
-* GOOGLE GENAI API integration
-* Modular architecture for future scalability
-* Knowledge-base driven responses
-* Ready for RAG (Retrieval Augmented Generation)
-* Easily deployable on VPS or cloud environments
+* WebSocket-based chat using native `ws`
+* Gemini Live / Google GenAI integration
+* Function-calling toolchain for precise knowledge-base lookup
+* Reactive knowledge-base output from markdown sources
+* Modular architecture for future RAG expansion
+* Ready for VPS or cloud deployment
 
 ## Tech Stack
 
@@ -22,7 +21,8 @@ An AI-powered backend service for my personal portfolio website. This project pr
 
 ### AI
 
-* GOOGLE GENAI API
+* Google GenAI Gemini Live
+* Function calling via `searchKnowledge`
 
 ### Infrastructure
 
@@ -39,33 +39,22 @@ portfolio-ai-backend/
 │   ├── config/
 │   │   └── env.ts
 │   │
-│   ├── routes/
-│   │   └── chat.routes.ts
-│   │
 │   ├── controllers/
 │   │   └── chat.controller.ts
 │   │
 │   ├── services/
-│   │   ├── openai.service.ts
-│   │   ├── rag.service.ts
-│   │   └── vector.service.ts
-│   │
-│   ├── middleware/
-│   │   ├── error.middleware.ts
-│   │   └── logger.middleware.ts
+│   │   └── gemini.service.ts
 │   │
 │   ├── knowledge/
-│   │   ├── resume.md
-│   │   ├── projects.md
-│   │   └── faq.md
+│   │   ├── experience.md
+│   │   ├── project_ckeditor_deepdive.md
+│   │   ├── project_ngrx_deepdive.md
+│   │   ├── project_presmistique_deepdive.md
+│   │   └── projects_overview.md
 │   │
 │   ├── app.ts
 │   └── server.ts
 │
-├── scripts/
-│   └── ingest.ts
-│
-├── .env
 ├── package.json
 ├── tsconfig.json
 └── README.md
@@ -92,8 +81,9 @@ Create a `.env` file in the root directory.
 
 ```env
 PORT=3000
-GENAI_API_KEY=your_genai_api_key
+GEMINI_API_KEY=your_genai_api_key
 NODE_ENV=development
+ALLOWED_ORIGINS=http://localhost:4200
 ```
 
 ## Running the Application
@@ -116,69 +106,73 @@ npm run build
 npm start
 ```
 
-## API Endpoints
+## WebSocket Chat Endpoint
 
-### Chat Endpoint
+This backend exposes a WebSocket upgrade endpoint at:
 
-**POST** `/api/chat`
+**`ws://<host>:<port>/api/chat`**
 
-#### Request
-
-```json
-{
-  "message": "Tell me about your Angular experience"
-}
-```
-
-#### Response
+Clients should connect using a standard WebSocket client and send JSON messages like:
 
 ```json
 {
-  "success": true,
-  "answer": "I have 8 years of experience working with Angular..."
+  "type": "USER_MESSAGE",
+  "text": "Tell me about your Angular experience"
 }
 ```
+
+The backend streams structured WebSocket events for live response delivery:
+
+* `SYSTEM` - welcome and status messages
+* `TEXT_CHUNK` - incremental model text output
+* `AGENT_STEP` - function-call planning and observation progress
+* `TURN_COMPLETE` - completion of a model turn
+* `ERROR` - socket or session errors
 
 ## Architecture
 
 ```text
-Angular Portfolio (Cloudflare)
+Angular Portfolio (frontend)
             │
             ▼
-      Express API
+WebSocket client connects to
+      ws://<host>:<port>/api/chat
             │
             ▼
-      OpenAI Service
+Express + native WebSocket server
             │
             ▼
-     Knowledge Base
+Gemini Live session with function calling
+            │
+            ▼
+Reactive knowledge-base lookup
 ```
 
 ## Knowledge Base
 
-The assistant can be trained using markdown files stored under:
+The assistant sources responses from markdown files under:
 
 ```text
 src/knowledge/
 ```
 
-Example:
+Example knowledge sources used by the live agent:
 
-* resume.md
-* projects.md
-* skills.md
-* experience.md
-* faq.md
+* `experience` → experience.md
+* `ckeditor5` → project_ckeditor_deepdive.md
+* `ngrx` → project_ngrx_deepdive.md
+* `presmistique` → project_presmistique_deepdive.md
+* `projects_overview` → projects_overview.md
 
-These files will later be indexed and used for semantic search through a vector database.
+The model is configured to answer only from tool-provided knowledge, making the response output precise and grounded.
 
 ## Roadmap
 
 ### Phase 1
 
-* Basic AI chatbot
-* OpenAI integration
-* Portfolio Q&A
+* Reactive Gemini Live chat
+* WebSocket streaming responses
+* Function-calling knowledge lookup
 
 ### Phase 2
 
@@ -196,9 +190,9 @@ These files will later be indexed and used for semantic search through a vector 
 
 * Never expose API keys in frontend applications.
 * Store secrets using environment variables.
-* Configure CORS to allow only trusted origins.
-* Implement rate limiting before production deployment.
-* Validate all incoming request payloads.
+* Configure CORS and allowed WebSocket origins only for trusted clients.
+* Validate incoming WebSocket message payloads.
+* Close sessions cleanly on disconnects and errors.
 
 ## Deployment
 
@@ -209,11 +203,8 @@ Frontend:
 Cloudflare Pages
 
 Backend:
-Node.js + Express
+Node.js + Express + Gemini Live
 Hosted on VPS
-
-AI:
-OpenAI API
 ```
 
 ## Author
