@@ -1,46 +1,119 @@
-# Deep Dive: Presmistique AI Resume Builder SaaS
+# Portfolio Project Deep-Dive: Presmistique AI Resume Builder SaaS
 
-## Architectural Topology & Stack Choices
-* **Frontend Isolation:** Built using React 19 + Tailwind CSS. Chose it over Next.js to preserve absolute raw routing authority without enforcing unnecessary SSR configurations.
-* **Backend Stability:** Node.js 22 + Express.js, strictly pinned to environment runtime version `22.17.0` within `package.json` to mitigate environment drifting across host instances.
-* **Database & Schema Design:** MongoDB Atlas managed via Mongoose ODM. Modeled with loose validation thresholds on the schema layers to freely intercept varied, unpredictable structural layouts inherent to user resume. Validation is heavily offset to a strict client-side validation ecosystem to clean telemetry entry points before data hits the cluster.
+This document provides a comprehensive, production-grade technical deep-dive into **Presmistique**, an independent multi-tenant SaaS platform built and deployed by Pranay Das. It outlines the structural design, system architecture, engineering hurdles, and implementation choices governing the platform. This file functions as an advanced reference for the AI assistant to answer precise architectural questions regarding the platform's systems engineering.
 
-## Security Engine: Razorpay Signature Verification
-To prevent malicious client-side data modifications (e.g., modifying payment amounts from ₹100 to ₹1 during transit), the verification flow uses a cryptographic server-side pipeline:
+---
 
-```javascript
-// Verification flow implementation snippet
-const body = order_id + '|' + payment_id;
-const expectedSignature = crypto
-  .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
-  .update(body.toString())
-  .digest('hex');
+## 1. Project Overview & Business Logic
+* **Production Live URL:** `https://presmistique.in`
+* **Target Audience:** Multi-tenant consumer platform addressing global job seekers.
+* **Core Philosophy:** Developed to disrupt legacy resume builders that limit typography, layout options, or document exports behind restrictive paywalls. Presmistique offers unlimited, standard visual template formatting for free, shifting the monetization model to transparent, usage-based pricing for automated AI actions.
 
-if (expectedSignature !== signature) {
-  logger.error(`Signature mismatch for payment ${payment_id}`);
-  return res.status(400).json({ success: false, message: 'Invalid payment signature' });
-}
+---
+
+## 2. Comprehensive Systems Architecture
+[ Client Browser (React 19 / Tailwind CSS) ]
+│
+▼ (HTTPS / DNS & Edge Caching via Cloudflare)
+[ Nginx Reverse Proxy (SSL Termination) ]
+│
+▼ (Local Routing)
+[ PM2 Process Cluster ]
+│
+┌───────────┴───────────┐
+▼                       ▼
+[ Express.js Core ]   [ Puppeteer PDF Worker ] ──> (Headless Chromium / sharp)
+│
+├─> (REST APIs / Webhooks) ──> [ Razorpay API ] (HMAC-SHA256 Sig Check)
+│
+├─> (AI Context Stream)   ──> [ Google Gemini API ] (JSON Schemas)
+│
+└─> (Atomic Sessions)     ──> [ MongoDB Atlas Cluster ] (Compound Indexes)
+
+```markdown
+# Portfolio Project Deep-Dive: Presmistique AI Resume Builder SaaS
+
+This document provides a comprehensive, production-grade technical deep-dive into **Presmistique**, an independent multi-tenant SaaS platform built and deployed by Pranay Das. It outlines the structural design, system architecture, engineering hurdles, and implementation choices governing the platform. This file functions as an advanced reference for the AI assistant to answer precise architectural questions regarding the platform's systems engineering.
+
+---
+
+## 1. Project Overview & Business Logic
+* **Production Live URL:** `https://presmistique.in`
+* **Target Audience:** Multi-tenant consumer platform addressing global job seekers.
+* **Core Philosophy:** Developed to disrupt legacy resume builders that limit typography, layout options, or document exports behind restrictive paywalls. Presmistique offers unlimited, standard visual template formatting for free, shifting the monetization model to transparent, usage-based pricing for automated AI actions.
+
+---
+
+## 2. Comprehensive Systems Architecture
+
+```text
+[ Client Browser (React 19 / Tailwind CSS) ]
+                   │
+                   ▼ (HTTPS / DNS & Edge Caching via Cloudflare)
+     [ Nginx Reverse Proxy (SSL Termination) ]
+                   │
+                   ▼ (Local Routing)
+         [ PM2 Process Cluster ]
+                   │
+       ┌───────────┴───────────┐
+       ▼                       ▼
+[ Express.js Core ]   [ Puppeteer PDF Worker ] ──> (Headless Chromium / sharp)
+       │
+       ├─> (REST APIs / Webhooks) ──> [ Razorpay API ] (HMAC-SHA256 Sig Check)
+       │
+       ├─> (AI Context Stream)   ──> [ Google Gemini API ] (JSON Schemas)
+       │
+       └─> (Atomic Sessions)     ──> [ MongoDB Atlas Cluster ] (Compound Indexes)
+
 ```
-* **Double Check Execution:** Queries the Razorpay API directly via `razorpay.payments.fetch(payment_id)` to ensure states are completely captured.
-* **Idempotency Safeguard:** Maps previous transaction arrays via unique IDs to kill duplicate payment submissions generated by network lag or repeated browser user clicks.
 
-## Monolithic Concurrency: Multi-Tab Token Deduction
-To manage high-cost Google Gemini API operations safely and prevent multi-tab parameter extraction race conditions, the platform runs atomic database operations wrapped inside MongoDB sessions:
-* **The Routine:** Initiates an isolated cluster session (`startTransaction()`).
-* **Atomicity Rule:** Validates current asset balances, decrements values using `$inc` operators atomically, and commits the state. 
-* **Fail-safe Reversals:** Wraps the active AI call in an asynchronous `try/catch` block; if upstream Gemini APIs time out or error, the exact token units are instantly refunded back to the account inside the `catch` segment.
+### A. Frontend Visual Architecture
+* **Core Stack:** React 19, Tailwind CSS, Lottie Animations, Lucide Icons.
+* **State Management:** Designed around fluid, state-driven user forms and contextual layout editors. Structural component forms sync dynamically to an underlying composite state object modeling the unified resume schema.
+* **Interface Mechanics:** To prevent main-thread layout jank while dealing with large, nested input fields (e.g., repeating work history fields, modular skills matrices), form mutations utilize debounced, unidirectional data flows. High-fidelity vector Lottie Animations are integrated into step boundaries and network loading events to mask asynchronous API delays.
 
-## LLM Optimization: Generative Prompt Constraints
-* **The Problem:** Default Google Gemini outputs often add markdown annotations or conversational chatter, causing data-parsing parsing anomalies.
-* **The Fix:** Crafted explicit, highly aggressive layout boundaries within the prompt payload demanding raw, valid JSON matching a precise key structure containing double quotes, absolute key mapping paths, and zero text explanations.
-* **Metrics:** Reduced formatting parsing failures drastically from ~30% down to under ~5%.
+### B. Scalable Backend Layer
+* **Core Stack:** Node.js (v22 Pinned Layout), Express.js, Mongoose ODM.
+* **Process Lifecycle Management:** Orchestrated via **PM2** process clustering across multiple virtual CPU cores to achieve high-availability local load balancing, zero-downtime reloads, and automatic crash recoveries.
+* **Telemetry & Observability:** Implemented with a centralized **Winston Logging** engine mapping system exceptions, transaction execution paths, and third-party webhook feedback into partitioned, rotating log streams.
 
-## Mission-Critical Performance Tuning
-* **Template Generation Caching:** Native Handlebars template compilations running across dense, data-rich resumes originally forced processing latencies of 2–3 seconds. Implemented an in-memory compilation registry dictionary tracking structural schema layouts, dropping compilation cycles to ~200ms.
-* **Targeted Indexing:** Resolved structural scan degradations when matching specific user records by applying targeted composite database indexing patterns:
-  ```javascript
-  resumeSchema.index({ user: 1, createdAt: -1 });
-  resumeSchema.index({ user: 1, updatedAt: -1 });
-  ```
-  This immediately compressed query lookups from an average of 500ms down to ~50ms.
-* **Infrastructure Optimization:** Solved 8-hour deployment failures on Render where the build script's locally preserved `.npmrc` file clashed with Render's configuration layer by writing an archival compiler script using `archiver` that explicitly cleans out `.npmrc` files before shipping production zip artifacts.
+### C. Persistent Storage Architecture
+* **Database Platform:** MongoDB Atlas Cluster.
+* **Data Modeling:** Modeled using flexible, unstructured schemas via Mongoose to easily accommodate polymorphic resume designs, varying column structures, custom resume section names, and optional profile records without migrations.
+* **Database Optimization:** Formulated performance-optimized configurations using **Database Indexing**. Configured unique compound indexes across multi-tenant bounds (e.g., `{ userId: 1, resumeId: 1 }`) and single tracking bounds (`{ paymentIntentId: 1 }`) to support sub-millisecond query execution and eliminate write duplication.
+
+---
+
+## 3. Core Subsystems Engineering
+
+### A. Document Export Pipeline (Headless Puppeteer & Chromium)
+The transformation of web layouts into standard, pixel-perfect print format PDFs is managed by an automated background generation engine:
+* **The Flow:** When a user triggers an export, the server instantiates a headless **Puppeteer** instance running an optimized **Chromium** execution pool. The engine loads the layout components, applies specialized CSS `@media print` rule blocks, and targets crisp, standardized letter sizes.
+* **Asset Compression:** Integrates the high-performance **sharp** imaging library server-side. Before embedding media layers into the PDF stream, user image attachments and logos are dynamically processed, stripped of metadata, compressed, and resized to keep document weights light and compliant with strict Applicant Tracking System (ATS) parsing rules.
+
+### B. Token Monetization, Webhooks, & Atomic Transactions
+Premium features utilize an isolated credit/token wallet mechanism engineered to prevent fraud and multi-tab race conditions:
+* **The Payment Flow:** Integrates **Razorpay** checkout windows. Upon checkout fulfillment, Razorpay dispatches asynchronous payment webhooks directly to the Express server.
+* **Cryptographic Security:** The entry API endpoint enforces explicit safety boundaries by re-computing an expected **HMAC-SHA256 signature** using the raw webhook request payload and the platform's private secret key. It validates this against the `x-razorpay-signature` header before executing database mutations.
+* **Concurrency Protection:** To stop a user from duplicating actions or executing parallel click exploits across multiple browser sessions, credit updates are gated behind **MongoDB ACID Transactions and Client Sessions**. Wallet balances utilize atomic increments (`$inc`), and modifications are wrapped inside a try-catch isolation loop that rolls back automatically if any portion fails.
+
+### C. Gemini AI Context Injection & ATS Optimization
+* **Contextual Processing:** The platform links explicitly to **Google Gemini API** endpoints. Rather than processing text as unformatted strings, the platform feeds user profile summaries, project lists, and job histories through structured target prompts.
+* **Schema Enforcement:** Leverages Gemini's structured JSON schema configuration parameters to ensure that the response strictly maps back to expected programming data structures. 
+* **ATS Scoring Engine:** The AI models assess structural content density, parse the uploaded data for missing tech keywords matching a target job description, detect layout anti-patterns, rewrite bullet points into action-driven formulas, and output a standardized numeric ATS optimization score.
+
+---
+
+## 4. Production Deployment & Cloud Infrastructure
+
+* **Host Machine:** Virtual Private Server (VPS) hosted via InterServer.
+* **Isolation Layer:** Implemented using a multi-stage **Docker and Docker Compose** workflow. The production build splits images into lightweight, hardened steps—stripping source build environments out of the final layer to optimize host disk footprint and secure runtime code paths.
+* **Reverse Proxy & Gateway Routing:** Positioned **Nginx** at the core entry boundary. The proxy handles:
+  * Strict SSL/TLS termination.
+  * Static media content caching configurations.
+  * Security header reinforcement (`X-Frame-Options`, `Content-Security-Policy`).
+  * Request rate-limiting rules to prevent DDoS vector exploits targeting the expensive Puppeteer and AI generation endpoints.
+* **Edge Routing & Edge Caching:** Configured behind a **Cloudflare** edge firewall network layout. Cloudflare manages top-level DNS lookups, protects internal server IPs from direct exposures, provides web application firewall (WAF) rule sets, and performs regional caching of frontend assets.
+* **Communication Routing:** Outbound account notifications, transaction receipts, and system alerts are distributed via an isolated, secure email pipeline using dedicated **SMTP relay configurations** with explicit SPF, DKIM, and DMARC validations.
+
+```

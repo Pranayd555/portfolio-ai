@@ -1,22 +1,28 @@
-import fs from 'fs/promises';
-import path from 'path';
+import fs from 'node:fs/promises';
+import path from 'node:path';
 
 type KnowledgeSource =
+  | 'knowledge_graph'
   | 'ckeditor5'
-  | 'ngrx'
+  | 'fruit_basket'
   | 'skills'
+  | 'eva_ai'
+  | 'codelens_graph'
   | 'experience'
   | 'presmistique'
   | 'projects_overview';
 
 export class KnowledgeService {
-  private cache = new Map<string, string>();
+  readonly cache = new Map<string, string>();
 
-  private fileMap: Record<KnowledgeSource, string> = {
+  readonly fileMap: Record<KnowledgeSource, string> = {
+    knowledge_graph: 'knowledge_graph.md',
     ckeditor5: 'project_ckeditor_deepdive.md',
-    ngrx: 'project_ngrx_deepdive.md',
+    fruit_basket: 'project_fruit_basket_deepdive.md',
     presmistique: 'project_presmistique_deepdive.md',
     projects_overview: 'projects_overview.md',
+    eva_ai: 'project_eva_ai_deepdive.md',
+    codelens_graph: 'project_codelens_graph_deepdive.md',
     skills: 'skills.md',
     experience: 'experience.md'
   };
@@ -33,17 +39,22 @@ export class KnowledgeService {
       __dirname,
       '..',
       '..',
-      'src',          // Steps out of 'services' up to your compiled root ('/app/dist')
-      'knowledge',    // Drops directly into the 'knowledge' directory copied by your Dockerfile
+      'src',
+      'knowledge',
       this.fileMap[source]
     );
+    try {
+      const content =
+        await fs.readFile(filePath, 'utf8');
+  
+      this.cache.set(source, content);
+  
+      return content;
 
-    const content =
-      await fs.readFile(filePath, 'utf8');
-
-    this.cache.set(source, content);
-
-    return content;
+    } catch {
+      console.error('error fetching file', source);
+      return 'No Such file found in the knowledgebase.'
+    }
   }
 
   clearCache() {

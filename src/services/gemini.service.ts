@@ -1,6 +1,5 @@
 import {
   FunctionDeclaration,
-  FunctionResponse,
   GoogleGenAI,
   Modality
 } from "@google/genai";
@@ -9,6 +8,15 @@ import { knowledgeService } from "./knowledge.service";
 
 const SYSTEM_PROMPT = `
 You are Eva.
+
+For every question:
+
+1. Read knowledge_graph.md first.
+2. Determine relevant sources using the knowledge graph.
+3. Read all relevant sources.
+4. Answer only from retrieved information.
+
+Never select sources without consulting knowledge_graph.md.
 
 You may ONLY answer using information returned by the searchKnowledge tool.
 
@@ -47,12 +55,15 @@ const searchKnowledgeTool: FunctionDeclaration = {
         type: 'string',
         description: 'The exact knowledge source to read from.',
         enum: [
+          'knowledge_graph',
           'ckeditor5',
-          'ngrx',
+          'fruit_basket',
           'skills',
+          'eva_ai',
+          'codelens_graph',
           'experience',
           'presmistique',
-          'projects_overview',
+          'projects_overview'
         ],
       },
     },
@@ -72,16 +83,21 @@ const config = {
   ],
 };
 
+let graphLoaded: boolean = false;
+
 type KnowledgeSource =
-  | "ckeditor5"
-  | "ngrx"
-  | "skills"
-  | "experience"
-  | "presmistique"
-  | "projects_overview";
+| 'knowledge_graph'
+| 'ckeditor5'
+| 'fruit_basket'
+| 'skills'
+| 'eva_ai'
+| 'codelens_graph'
+| 'experience'
+| 'presmistique'
+| 'projects_overview';
 
 export async function searchKnowledge(source: KnowledgeSource, query?: string) {
-  const content = await knowledgeService.getContent(source as KnowledgeSource);
+  const content = await knowledgeService.getContent(source);
 
   return {
     source,
@@ -90,16 +106,28 @@ export async function searchKnowledge(source: KnowledgeSource, query?: string) {
 }
 
 async function executeTool(name: string, args: any) {
-  switch (name) {
-    case "searchKnowledge":
-      return searchKnowledge(args.source);
+  if (name === 'searchKnowledge') {
 
-    default:
+    if (args.source === 'knowledge_graph') {
+      graphLoaded = true;
+      console.log('knowledge graph called')
+      return searchKnowledge(args.source);
+    }
+
+    if (!graphLoaded) {
       return {
-        error: `Unknown tool ${name}`,
+        error:
+          'knowledge_graph must be consulted before any other source'
       };
+    }
+
+    return searchKnowledge(args.source);
   }
-}
+
+  return {
+    error: `Unknown tool ${name}`
+  };
+  }
 
 export async function runPortfolioAgent(socketId: string,
   onTextChunk: (text: string) => void,
@@ -115,6 +143,7 @@ export async function runPortfolioAgent(socketId: string,
       },
       onmessage: async (message: any) => {
         if (message.toolCall?.functionCalls) {
+          console.log('graphLeaded has set to', graphLoaded);
           for (const call of message.toolCall.functionCalls) {
             onStep('planning', { message: `AI is planning to run tool: ${call.name}` });
 
@@ -125,7 +154,7 @@ export async function runPortfolioAgent(socketId: string,
               resultPreview: JSON.stringify(result).substring(0, 150) + '...'
             });
 
-            await session.sendToolResponse({
+            session.sendToolResponse({
               functionResponses: [{
                 id: call.id,
                 name: call.name,
@@ -163,4 +192,8 @@ export async function runPortfolioAgent(socketId: string,
   });
 
   return session;
+}
+
+export function updateGraphLoaded() {
+  graphLoaded = false;
 }

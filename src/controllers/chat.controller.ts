@@ -1,8 +1,8 @@
 // src/controllers/chat.socket.ts
 import { WebSocketServer, WebSocket } from 'ws';
-import { IncomingMessage } from 'http';
-import { randomUUID } from 'crypto';
-import { runPortfolioAgent } from '../services/gemini.service';
+import { IncomingMessage } from 'node:http';
+import { randomUUID } from 'node:crypto';
+import { runPortfolioAgent, updateGraphLoaded } from '../services/gemini.service';
 import { env } from '../config/env';
 
 // Initialize a decoupled WebSocket Server (no port or server assigned yet)
@@ -29,8 +29,7 @@ chatWss.on('connection', async (ws: WebSocket, request: IncomingMessage) => {
   ws.send(JSON.stringify({ type: 'SYSTEM', message: 'Welcome to the chat, anonymous!' }));
   ws.send(JSON.stringify({ type: 'WELCOME', 
     message: 
-`Neural link established.
-
+`
 You've connected to Eva.
 
 Think of me as a digital assistant trained on Pranay's experience, projects, technical decisions, and engineering journey.
@@ -71,7 +70,7 @@ What would you like to know?`, connectionId }));
           ws.send(JSON.stringify({ type: 'ERROR', message: 'No active Gemini session for this connection.' }));
           return;
         }
-
+        updateGraphLoaded();
         session.sendClientContent({
           turns: [
             {
