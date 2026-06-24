@@ -1,12 +1,11 @@
-// src/controllers/chat.socket.ts
-import { WebSocketServer, WebSocket } from 'ws';
-import { IncomingMessage } from 'node:http';
-import { randomUUID } from 'node:crypto';
-import { runPortfolioAgent } from '../services/gemini.service';
-import { env } from '../config/env';
+import { WebSocket, WebSocketServer } from "ws";
+import { env } from "../config/env";
+import { IncomingMessage } from "node:http";
+import { randomUUID } from "node:crypto";
+import { runPortfolioAgent } from "../services/gemini.service";
 
 // Initialize a decoupled WebSocket Server (no port or server assigned yet)
-const chatWss = new WebSocketServer({ 
+const talkWss = new WebSocketServer({ 
   noServer: true,
   verifyClient: (info, cb) => {
     const origin = info.origin || info.req.headers.origin || '';
@@ -22,7 +21,7 @@ const chatWss = new WebSocketServer({
 
 const liveSessions = new Map<string, any>();
 
-chatWss.on('connection', async (ws: WebSocket, request: IncomingMessage) => {
+talkWss.on('connection', async (ws: WebSocket, request: IncomingMessage) => {
   const connectionId = randomUUID();
   console.log('New client connected', connectionId);
 
@@ -64,7 +63,7 @@ What would you like to know?`, connectionId }));
     try {
       const data = JSON.parse(message.toString());
 
-      if (data?.type === 'USER_MESSAGE' && typeof data.text === 'string') {
+      if (data?.type === 'USER_MESSAGE' && typeof data.audio === 'string') {
         const session = liveSessions.get(connectionId);
         if (!session) {
           ws.send(JSON.stringify({ type: 'ERROR', message: 'No active Gemini session for this connection.' }));
@@ -85,7 +84,7 @@ What would you like to know?`, connectionId }));
       ws.send(JSON.stringify({ type: 'ERROR', message: 'Unsupported message type.' }));
     } catch (error) {
       console.error('WebSocket parse error:', error);
-      ws.send(JSON.stringify({ type: 'ERROR', message: 'Invalid JSON format' }));
+      ws.send(JSON.stringify({ type: 'ERROR', message: 'Invalid Input format' }));
     }
   });
 
@@ -108,4 +107,4 @@ What would you like to know?`, connectionId }));
   });
 });
 
-export { chatWss };
+export { talkWss };

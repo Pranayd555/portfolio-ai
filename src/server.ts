@@ -2,6 +2,7 @@ import { createServer, IncomingMessage } from 'http';
 import app from './app';
 import { env } from './config/env';
 import { chatWss } from './controllers/chat.controller';
+import { talkWss } from './controllers/talk.controller';
 
 
 // Create an HTTP server using the Express app
@@ -22,6 +23,10 @@ server.on('upgrade', (request, socket, head) => {
   if (pathname === '/api/chat') {
     chatWss.handleUpgrade(request, socket, head, (ws) => {
       chatWss.emit('connection', ws, request);
+    });
+  } else if (pathname === '/api/talk') {
+    talkWss.handleUpgrade(request, socket, head, (ws) => {
+      talkWss.emit('connection', ws, request);
     });
   } else {
     socket.destroy();
