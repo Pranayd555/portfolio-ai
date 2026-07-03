@@ -2,8 +2,8 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import { IncomingMessage } from 'node:http';
 import { randomUUID } from 'node:crypto';
-import { runPortfolioAgent } from '../services/gemini.service';
 import { env } from '../config/env';
+import { ChatService } from '../services/chat.service';
 
 // Initialize a decoupled WebSocket Server (no port or server assigned yet)
 const chatWss = new WebSocketServer({ 
@@ -19,6 +19,8 @@ const chatWss = new WebSocketServer({
     }
   }
 });
+
+const chatService = new ChatService();
 
 const liveSessions = new Map<string, any>();
 
@@ -39,7 +41,7 @@ Whether you're a recruiter, client, founder, or fellow developer, I can help you
 What would you like to know?`, connectionId }));
 
   try {
-    const geminiSession = await runPortfolioAgent(
+    const geminiSession = await chatService.runPortfolioAgent(
       connectionId,
       (textChunk) => {
         ws.send(JSON.stringify({ type: 'TEXT_CHUNK', text: textChunk }));

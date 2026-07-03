@@ -6,7 +6,21 @@ import {
 import { env } from "../config/env";
 import { knowledgeService } from "./knowledge.service";
 
-const SYSTEM_PROMPT = `
+type KnowledgeSource =
+| 'knowledge_graph'
+| 'ckeditor5'
+| 'fruit_basket'
+| 'skills'
+| 'eva_ai'
+| 'codelens_graph'
+| 'experience'
+| 'presmistique'
+| 'projects_overview';
+export class GeminiService {
+
+  graphLoaded: boolean = false;
+
+  SYSTEM_PROMPT = `
 You are Eva.
 
 For every question:
@@ -24,9 +38,11 @@ If a question requires information not present in tool results:
 
 "I couldn't find information about that in Pranay's portfolio knowledge base."
 
-If a question is unrelated to Pranay Das:
+If a question is unrelated to Pranay:
 
-"I'm designed exclusively to discuss Pranay Das, his experience, projects, skills, and professional work. Please ask a relevant question."
+"I'm designed exclusively to discuss Pranay, his experience, projects, skills, and professional work. Please ask a relevant question."
+
+Always start the conversation with a brief, warm, and professional welcome message offering to showcase Pranay's projects and skills.
 
 Do not answer from your own knowledge.
 Do not use world knowledge.
@@ -39,13 +55,14 @@ Use searchKnowledge whenever information is needed.
 
 Tool results are the sole source of truth.
 `;
+// Child classes will overwrite this object directly in their definitions
+protected configOverrides: any = {};
 
-
-const ai = new GoogleGenAI({
+ai = new GoogleGenAI({
   apiKey: env.geminiApiKey,
 });
 
-const searchKnowledgeTool: FunctionDeclaration = {
+searchKnowledgeTool: FunctionDeclaration = {
   name: "searchKnowledge",
   description: "Retrieve information from Pranay's knowledge base",
   parametersJsonSchema: {
@@ -71,32 +88,21 @@ const searchKnowledgeTool: FunctionDeclaration = {
   },
 };
 
-const model = "gemini-3.1-flash-live-preview";
-const config = {
+model = "gemini-3.1-flash-live-preview";
+
+config = {
   responseModalities: [Modality.AUDIO],
   outputAudioTranscription: {},
-  systemInstruction: SYSTEM_PROMPT,
+  systemInstruction: this.SYSTEM_PROMPT,
   tools: [
     {
-      functionDeclarations: [searchKnowledgeTool],
+      functionDeclarations: [this.searchKnowledgeTool],
     },
   ],
+  speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: "Callirrhoe" } } }
 };
 
-let graphLoaded: boolean = false;
-
-type KnowledgeSource =
-| 'knowledge_graph'
-| 'ckeditor5'
-| 'fruit_basket'
-| 'skills'
-| 'eva_ai'
-| 'codelens_graph'
-| 'experience'
-| 'presmistique'
-| 'projects_overview';
-
-export async function searchKnowledge(source: KnowledgeSource, query?: string) {
+async searchKnowledge(source: string, query?: string) {
   const content = await knowledgeService.getContent(source);
 
   return {
@@ -104,24 +110,28 @@ export async function searchKnowledge(source: KnowledgeSource, query?: string) {
     content,
   };
 }
-
-async function executeTool(name: string, args: any) {
+async executeTool(name: string, args: any) {
   if (name === 'searchKnowledge') {
 
-    if (args.source === 'knowledge_graph') {
-      graphLoaded = true;
-      console.log('knowledge graph called')
-      return searchKnowledge(args.source);
-    }
-
-    if (!graphLoaded) {
+    if (typeof args.source !== 'string') {
       return {
-        error:
-          'knowledge_graph must be consulted before any other source'
+        error: 'searchKnowledge requires a valid source string.',
       };
     }
 
-    return searchKnowledge(args.source);
+    if (args.source === 'knowledge_graph') {
+      this.graphLoaded = true;
+      console.log('knowledge graph called');
+      return this.searchKnowledge(args.source);
+    }
+
+    if (!this.graphLoaded) {
+      return {
+        error: 'knowledge_graph must be consulted before any other source',
+      };
+    }
+
+    return this.searchKnowledge(args.source);
   }
 
   return {
@@ -129,71 +139,4 @@ async function executeTool(name: string, args: any) {
   };
   }
 
-export async function runPortfolioAgent(socketId: string,
-  onTextChunk: (text: string) => void,
-  onStep: (step: string, detail: any) => void,
-  onTurnComplete: () => void) {
-  const session = await ai.live.connect({
-    model,
-    config,
-    callbacks: {
-      onopen: () => {
-        console.log(`[Gemini Live] Connected for connection ID: ${socketId}`);
-        onStep('system', { message: 'Connected to Gemini Live.' });
-      },
-      onmessage: async (message: any) => {
-        if (message.toolCall?.functionCalls) {
-          console.log('graphLeaded has set to', graphLoaded);
-          for (const call of message.toolCall.functionCalls) {
-            onStep('planning', { message: `AI is planning to run tool: ${call.name}` });
-
-            const result = await executeTool(call.name, call.args);
-
-            onStep('observation', {
-              message: 'Tool output received and fed back to model.',
-              resultPreview: JSON.stringify(result).substring(0, 150) + '...'
-            });
-
-            session.sendToolResponse({
-              functionResponses: [{
-                id: call.id,
-                name: call.name,
-                response: result,
-              }]
-            });
-          }
-        }
-
-        if (message.serverContent?.modelTurn?.parts) {
-          for (const part of message.serverContent.modelTurn.parts) {
-            if (part.text) {
-              onTextChunk(part.text);
-            }
-          }
-        }
-
-        if (message.serverContent?.outputTranscription?.text) {
-          onTextChunk(message.serverContent.outputTranscription.text);
-        }
-
-        if (message.serverContent?.turnComplete || message.serverContent?.generationComplete) {
-          onTurnComplete();
-        }
-      },
-      onerror: (err) => {
-        console.error(`[Gemini Live Error] ${socketId}:`, err);
-        onStep('error', { message: 'A live stream pipeline error occurred.' });
-      },
-      onclose: (e) => {
-        console.log(`[Gemini Live] Connection closed for ${socketId}. Reason:`, e.reason);
-        onStep('closed', { reason: e.reason });
-      }
-    }
-  });
-
-  return session;
-}
-
-export function updateGraphLoaded() {
-  graphLoaded = false;
 }

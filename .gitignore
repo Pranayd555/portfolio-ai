@@ -7,3 +7,6 @@
 .vscode
 .zed
 
+
+# CodeLens Graph local index
+.codelens/

@@ -2,7 +2,7 @@ import { WebSocket, WebSocketServer } from "ws";
 import { env } from "../config/env";
 import { IncomingMessage } from "node:http";
 import { randomUUID } from "node:crypto";
-import { runPortfolioAgent } from "../services/gemini.service";
+import { TalkService } from "../services/talk.service";
 
 // Initialize a decoupled WebSocket Server (no port or server assigned yet)
 const talkWss = new WebSocketServer({ 
@@ -18,11 +18,13 @@ const talkWss = new WebSocketServer({
     }
   }
 });
+const talkService = new TalkService();
 
 const liveSessions = new Map<string, any>();
 
 talkWss.on('connection', async (ws: WebSocket, request: IncomingMessage) => {
   const connectionId = randomUUID();
+  let isSpeaking = false;
   console.log('New client connected', connectionId);
 
   ws.send(JSON.stringify({ type: 'SYSTEM', message: 'Welcome to the chat, anonymous!' }));
@@ -38,17 +40,21 @@ Whether you're a recruiter, client, founder, or fellow developer, I can help you
 What would you like to know?`, connectionId }));
 
   try {
-    const geminiSession = await runPortfolioAgent(
+    const geminiSession = await talkService.runPortfolioAgent(
       connectionId,
-      (textChunk) => {
-        ws.send(JSON.stringify({ type: 'TEXT_CHUNK', text: textChunk }));
+      (onAudioChunk) => {
+        if (!isSpeaking) {
+          isSpeaking = true;
+        }
+        ws.send(JSON.stringify({ type: 'AUDIO_RESPONSE', response: onAudioChunk }));
       },
       (step, detail) => {
         ws.send(JSON.stringify({ type: 'AGENT_STEP', step, detail }));
       },
       () => {
+        isSpeaking = false;
         ws.send(JSON.stringify({ type: 'TURN_COMPLETE' }));
-      }
+      },
     );
 
     liveSessions.set(connectionId, geminiSession);
@@ -59,26 +65,39 @@ What would you like to know?`, connectionId }));
     return;
   }
 
-  ws.on('message', (message: string) => {
+  ws.on('message', (message: ArrayBuffer, isBinary) => {
     try {
-      const data = JSON.parse(message.toString());
-
-      if (data?.type === 'USER_MESSAGE' && typeof data.audio === 'string') {
+      if (isBinary) {
         const session = liveSessions.get(connectionId);
         if (!session) {
           ws.send(JSON.stringify({ type: 'ERROR', message: 'No active Gemini session for this connection.' }));
           return;
         }
-        session.sendClientContent({
-          turns: [
-            {
-              role: 'user',
-              parts: [{ text: data.text }],
-            },
-          ],
-          turnComplete: true,
+        session.sendRealtimeInput({
+          audio: {
+            data: Buffer.from(message).toString('base64'),
+            mimeType: 'audio/pcm;rate=16000'
+          }
         });
         return;
+      } else {
+        const textData = JSON.parse(message.toString());
+        if (textData?.type === 'TURN_COMPLETE') {
+          console.log('TURN_COMPLETE', connectionId);
+          const session = liveSessions.get(connectionId);
+          if (!session) {
+            ws.send(JSON.stringify({ type: 'ERROR', message: 'No active Gemini session for this connection.' }));
+            return;
+          }
+          if (isSpeaking) {
+            ws.send(JSON.stringify({ type: 'INTERRUPT', message: 'User started speaking while Eva was responding.' }));
+            session.sendRealtimeInput({ audioStreamEnd: true });
+            isSpeaking = false;
+          } else {
+            session.sendRealtimeInput({ audioStreamEnd: true });
+          }
+          return;
+        }
       }
 
       ws.send(JSON.stringify({ type: 'ERROR', message: 'Unsupported message type.' }));

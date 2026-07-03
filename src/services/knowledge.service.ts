@@ -27,33 +27,50 @@ export class KnowledgeService {
     experience: 'experience.md'
   };
 
-  async getContent(
-    source: KnowledgeSource
-  ): Promise<string> {
-    if (this.cache.has(source)) {
-      return this.cache.get(source)!;
+  private resolveFileName(source: string): string | undefined {
+    if (!source || typeof source !== 'string') {
+      return undefined;
     }
-    console.log('source', source)
-    // DYNAMIC PATH RESOLUTION
+
+    if (source in this.fileMap) {
+      return this.fileMap[source as KnowledgeSource];
+    }
+
+    if (Object.values(this.fileMap).includes(source)) {
+      return source;
+    }
+
+    return undefined;
+  }
+
+  async getContent(
+    source: string
+  ): Promise<string> {
+    const fileName = this.resolveFileName(source);
+    if (!fileName) {
+      console.error('Invalid knowledge source requested:', source);
+      return `No knowledge content available for source: ${source}`;
+    }
+
+    if (this.cache.has(fileName)) {
+      return this.cache.get(fileName)!;
+    }
+
     const filePath = path.join(
       __dirname,
       '..',
       '..',
       'src',
       'knowledge',
-      this.fileMap[source]
+      fileName
     );
     try {
-      const content =
-        await fs.readFile(filePath, 'utf8');
-  
-      this.cache.set(source, content);
-  
+      const content = await fs.readFile(filePath, 'utf8');
+      this.cache.set(fileName, content);
       return content;
-
-    } catch {
-      console.error('error fetching file', source);
-      return 'No Such file found in the knowledgebase.'
+    } catch (error) {
+      console.error('error fetching file', source, error);
+      return `Could not load knowledge source: ${source}`;
     }
   }
 
