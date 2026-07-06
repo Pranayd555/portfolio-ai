@@ -70,14 +70,13 @@ export class TalkService extends GeminiService {
           }
 
           const content = response.serverContent;
+          if (content?.interrupted) {
+            // The generation was interrupted
+            this.responseQueue = [];
+            onStep("interrupted", { message: "Generation interrupted" });
+          }
           if (content?.modelTurn?.parts) {
             for (const part of content.modelTurn.parts) {
-              if (part.serverContent && part.serverContent.interrupted) {
-                // The generation was interrupted
-                // If realtime playback is implemented in your application,
-                // you should stop playing audio and clear queued playback here.
-                this.responseQueue = [];
-              }
               if (part.inlineData) {
                 const audioData = part.inlineData.data;
                 // Process or play audioData (base64 encoded string)

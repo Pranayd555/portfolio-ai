@@ -25,6 +25,7 @@ const liveSessions = new Map<string, any>();
 talkWss.on('connection', async (ws: WebSocket, request: IncomingMessage) => {
   const connectionId = randomUUID();
   let isSpeaking = false;
+  let ignoreAudio = false;
   console.log('New client connected', connectionId);
 
   ws.send(JSON.stringify({ type: 'SYSTEM', message: 'Welcome to the chat, anonymous!' }));
@@ -43,12 +44,20 @@ What would you like to know?`, connectionId }));
     const geminiSession = await talkService.runPortfolioAgent(
       connectionId,
       (onAudioChunk) => {
+        if (ignoreAudio) {
+          console.log('[TalkController] Discarding audio chunk from interrupted turn');
+          return;
+        }
         if (!isSpeaking) {
           isSpeaking = true;
         }
         ws.send(JSON.stringify({ type: 'AUDIO_RESPONSE', response: onAudioChunk }));
       },
       (step, detail) => {
+        if (step === 'interrupted') {
+          console.log('[TalkController] Interruption acknowledged. Resuming normal audio flow.');
+          ignoreAudio = false;
+        }
         ws.send(JSON.stringify({ type: 'AGENT_STEP', step, detail }));
       },
       () => {
@@ -72,6 +81,12 @@ What would you like to know?`, connectionId }));
         if (!session) {
           ws.send(JSON.stringify({ type: 'ERROR', message: 'No active Gemini session for this connection.' }));
           return;
+        }
+        if (isSpeaking) {
+          console.log('User started speaking (binary) while Eva was responding. Sending INTERRUPT.', connectionId);
+          ws.send(JSON.stringify({ type: 'INTERRUPT', message: 'User started speaking while Eva was responding.' }));
+          isSpeaking = false;
+          ignoreAudio = true; // Set ignoreAudio to true to drop late buffered chunks
         }
         session.sendRealtimeInput({
           audio: {
